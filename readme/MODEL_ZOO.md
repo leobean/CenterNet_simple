@@ -19,8 +19,7 @@
 |[ctdet\_coco\_dla\_2x](../experiments/ctdet_coco_dla_2x.sh)  |   8  | 92          |  19 / 36 / 248 | 37.4 / 39.2 / 41.7 | [model](https://drive.google.com/open?id=1pl_-ael8wERdUREEnaIfqOV_VF2bEVRT) |
 |[ctdet\_coco\_resdcn101](../experiments/ctdet_coco_resdcn101.sh)|   8  | 65          |  22 / 40 / 259 | 34.6 / 36.2 / 39.3 | [model](https://drive.google.com/open?id=1bTJCbAc1szA9lWU-fvVw52lqR3U2TTry) |
 |[ctdet\_coco\_resdcn18](../experiments/ctdet_coco_resdcn18.sh) |   4  | 28          |  7 / 14 / 81   | 28.1 / 30.0 / 33.2 | [model](https://drive.google.com/open?id=1b-_sjq1Pe_dVxt5SeFmoadMfiPTPZqpz) |
-|[exdet\_coco\_hg](../experiments/exdet_coco_hg.sh)       |   5  |215          | 134 / 246/1340 | 35.8 / 39.8 / 42.4 | [model](https://drive.google.com/open?id=1-5bT5ZF8bXriJ-wAvOjJFrBLvZV2-mlV) |
-|[exdet\_coco\_dla](../experiments/exdet_coco_dla.sh)      |   8  |133          | 51 / 90 / 481  | 33.0 / 36.5 / 38.5 | [model](https://drive.google.com/open?id=1PFcEqN0KjFuq9XaqzB7TkVD3pvXZx04e) |
+
 
 #### Notes
 
@@ -50,16 +49,6 @@
 - Training schedule: train for 70 epochs with learning rate dropped 10 times at the 45 and 60 epoch.
 - We observed up to 1 mAP performance jitter due to randomness in training.
 
-## Human pose estimation
-
-### COCO
-
-| Model                    | GPUs |Train time(h)| Test time (ms) |   AP        |  Download | 
-|--------------------------|------|-------------|----------------|-------------|-----------|
-|[multi\_pose\_hg_1x](../experiments/multi_pose_hg_1x.sh)    |   5  |62           | 151            | 58.7        | [model](https://drive.google.com/open?id=1HBB5KRaSj-m-vtpGESm7_3evNP5Y84RS) |
-|[multi\_pose\_hg_3x](../experiments/multi_pose_hg_3x.sh)    |   5  |188          | 151            | 64.0        | [model](https://drive.google.com/open?id=1n6EvwhTbz7LglVXXlL9irJia7YuakHdB) |
-|[multi\_pose\_dla_1x](../experiments/multi_pose_dla_1x.sh)   |   8  |30           | 44             | 54.7        | [model](https://drive.google.com/open?id=1VeiRtuXfCbmhQNGV-XWL6elUzpuWN-4K) |
-|[multi\_pose\_dla_3x](../experiments/multi_pose_dla_3x.sh)   |   8  |70           | 44             | 58.9        | [model](https://drive.google.com/open?id=1PO1Ax_GDtjiemEmDVD7oPWwqQkUu28PI) |
 
 #### Notes
 - All models are trained on keypoint train 2017 images which contains at least one human with keypoint annotations (64115 images).
@@ -75,15 +64,3 @@
 - The 3dop split is from [3DOP](https://papers.nips.cc/paper/5644-3d-object-proposals-for-accurate-object-class-detection) and the suborn split is from [SubCNN](https://github.com/tanshen/SubCNN).
 - No augmentation is used in testing.
 - The models are trained for 70 epochs with learning rate dropped at the 45 and 60 epoch.
-
-### KITTI 3DOP split
-
-|Model       |GPUs|Train time|Test time|AP-E|AP-M|AP-H|AOS-E|AOS-M|AOS-H|BEV-E|BEV-M|BEV-H| Download |
-|------------|----|----------|---------|----|----|----|-----|-----|-----|-----|-----|-----|----------|
-|[ddd_3dop](../experiments/ddd_3dop.sh)|2   | 7h       |  31ms   |96.9|87.8|79.2|93.9 |84.3 |75.7 |34.0 |30.5 |26.8 | [model](https://drive.google.com/open?id=1znsM6E-aVTkATreDuUVxoU0ajL1az8rz)|
-
-### KITTI SubCNN split
-
-|Model       |GPUs|Train time|Test time|AP-E|AP-M|AP-H|AOS-E|AOS-M|AOS-H|BEV-E|BEV-M|BEV-H| Download |
-|------------|----|----------|---------|----|----|----|-----|-----|-----|-----|-----|-----|----------|
-|[ddd_sub](../experiments/ddd_sub.sh) |2   | 7h       |  31ms   |89.6|79.8|70.3|85.7 |75.2 |65.9 |34.9 |27.7 |26.4 | [model](https://drive.google.com/open?id=15XuJxTxCBnA8O37M_ghjppnWmVnjC0Hp)|
