@@ -31,7 +31,7 @@ def conv3x3(in_planes, out_planes, stride=1):
                      padding=1, bias=False)
 
 
-class BasicBlock(nn.Module):
+class BasicBlock_back(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
@@ -62,6 +62,40 @@ class BasicBlock(nn.Module):
 
         return out
 
+class BasicBlock(nn.Module):
+    # BasicBlock_ACBlock
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(BasicBlock, self).__init__()
+        #self.conv1 = conv3x3(inplanes, planes, stride)
+        #self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.relu = nn.ReLU(inplace=True)
+        #self.conv2 = conv3x3(planes, planes)
+        #self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.downsample = downsample
+        self.stride = stride
+        self.acblock1 = ACBlock(inplanes, planes, stride=self.stride, padding=1, kernel_size=3, deploy=False)
+        self.acblock2 = ACBlock(planes, planes, padding=1, kernel_size=3, deploy=False)
+
+
+    def forward(self, x):
+        residual = x
+
+        out = self.acblock1(x)
+        #out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.acblock2(out)
+        #out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -278,3 +312,209 @@ def get_pose_net(num_layers, heads, head_conv):
   model = PoseResNet(block_class, layers, heads, head_conv=head_conv)
   model.init_weights(num_layers, pretrained=True)
   return model
+
+
+
+#  convert train model to deploy model:   https://github.com/DingXiaoH/ACNet/blob/master/acnet/acnet_fusion.py
+
+class ACBlock(nn.Module):
+
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, padding_mode='zeros', deploy=False):
+        super(ACBlock, self).__init__()
+        self.deploy = deploy
+        if deploy:
+            self.fused_conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(kernel_size,kernel_size), stride=stride,
+                                      padding=padding, dilation=dilation, groups=groups, bias=True)
+        else:
+            self.square_conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels,
+                                         kernel_size=(kernel_size, kernel_size), stride=stride,
+                                         padding=padding, dilation=dilation, groups=groups, bias=False)
+            self.square_bn = nn.BatchNorm2d(num_features=out_channels)
+
+            center_offset_from_origin_border = padding - kernel_size // 2
+            ver_pad_or_crop = (0, -1)
+            hor_pad_or_crop = (-1, 0)
+
+            ver_conv_padding = (1, 0)
+            hor_conv_padding = (0, 1)
+            self.ver_conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(3, 1),
+                                      stride=stride, padding=ver_conv_padding, dilation=dilation, groups=groups, bias=False)
+
+            self.hor_conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(1, 3),
+                                      stride=stride, padding=hor_conv_padding, dilation=dilation, groups=groups, bias=False)
+            self.ver_bn = nn.BatchNorm2d(num_features=out_channels)
+            self.hor_bn = nn.BatchNorm2d(num_features=out_channels)
+
+            #self.corner_conv = four_corner_conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(3,3), stride=stride, padding=1)
+            #self.corner_bn = nn.BatchNorm2d(num_features=out_channels)
+
+            self.left_diagonal_conv = left_diagonal_conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(3,3), stride=stride, padding=1)
+            self.left_diagonal_bn = nn.BatchNorm2d(num_features=out_channels)
+
+            self.right_diagonal_conv = right_diagonal_conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(3, 3), stride=stride, padding=1)
+            self.right_diagonal_bn = nn.BatchNorm2d(num_features=out_channels)
+
+    def forward(self, input):
+        if self.deploy:
+            return self.fused_conv(input)
+        else:
+            square_outputs = self.square_conv(input)
+            square_outputs = self.square_bn(square_outputs)
+            # print(square_outputs.size())
+            # return square_outputs
+            #vertical_outputs = self.ver_conv_crop_layer(input)
+            vertical_outputs = self.ver_conv(input)
+            vertical_outputs = self.ver_bn(vertical_outputs)
+            # print(vertical_outputs.size())
+            #horizontal_outputs = self.hor_conv_crop_layer(input)
+            horizontal_outputs = self.hor_conv(input)
+            horizontal_outputs = self.hor_bn(horizontal_outputs)
+            # print(horizontal_outputs.size())
+            #corner_outputs = self.corner_conv(input)
+            #corner_outputs = self.corner_bn(corner_outputs)
+            left_diagonal_outputs = self.left_diagonal_conv(input)
+            left_diagonal_outputs = self.left_diagonal_bn(left_diagonal_outputs)
+            right_diagonal_outputs = self.right_diagonal_conv(input)
+            right_diagonal_outputs = self.right_diagonal_bn(right_diagonal_outputs)
+            return square_outputs + vertical_outputs + horizontal_outputs + left_diagonal_outputs + right_diagonal_outputs
+
+class CropLayer(nn.Module):
+
+    #   E.g., (-1, 0) means this layer should crop the first and last rows of the feature map. And (0, -1) crops the first and last columns
+    def __init__(self, crop_set):
+        super(CropLayer, self).__init__()
+        self.rows_to_crop = - crop_set[0]
+        self.cols_to_crop = - crop_set[1]
+        assert self.rows_to_crop >= 0
+        assert self.cols_to_crop >= 0
+
+    def forward(self, input):
+        if self.rows_to_crop == 1:
+            return input[:, :, 1:-1, :]
+            #return input[:, :, :, 1:-1]
+        elif self.cols_to_crop == 1:
+            return input[:, :, :, 1:-1]
+            #return input[:, :, 1:-1, :]
+        #return input[:, :, self.rows_to_crop:-self.rows_to_crop, self.cols_to_crop:-self.cols_to_crop]
+
+
+import torch.nn.functional as F
+import torch
+
+def four_corner(out_channels, in_channels, kernel_size):
+    '''
+    :return: a 3*3 kernel
+    w 0 w
+    0 0 0
+    w 0 w
+    '''
+    kernel_size1, kernel_size2 = kernel_size, kernel_size
+    if isinstance(kernel_size, tuple):
+        kernel_size1 = kernel_size[0]
+        kernel_size2 = kernel_size[1]
+    new_kernel = torch.randn(out_channels, in_channels, kernel_size1, kernel_size2, requires_grad=True)
+    with torch.no_grad():
+        new_kernel[:, :, 0, 1] = 0.
+        new_kernel[:, :, 1, 0] = 0.
+        new_kernel[:, :, 1, 1] = 0.
+        new_kernel[:, :, 1, 2] = 0.
+        new_kernel[:, :, 2, 1] = 0.
+
+    return new_kernel
+
+class four_corner_conv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        super(four_corner_conv2d, self).__init__()
+        self.kernel_size = kernel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.stride = stride
+        self.padding = padding
+
+    def forward(self, x):
+
+        kernel = four_corner(self.out_channels, self.in_channels, self.kernel_size)
+        kernel = kernel.float().to(torch.device('cuda'))   # [channel_out, channel_in, kernel, kernel]
+        out = F.conv2d(x, kernel, stride=self.stride, padding=self.padding)
+
+        return out
+
+def left_diagonal(out_channels, in_channels, kernel_size):
+    '''
+    dui jiao xian
+    :return: a 3*3 kernel
+    w 0 0
+    0 w 0
+    0 0 w
+    '''
+    kernel_size1, kernel_size2 = kernel_size[0], kernel_size[1]
+    # if isinstance(kernel_size, tuple):
+    #     kernel_size1 = kernel_size[0]
+    #     kernel_size2 = kernel_size[1]
+    new_kernel = torch.randn(out_channels, in_channels, kernel_size1, kernel_size2, requires_grad=True).cuda()
+    with torch.no_grad():
+        new_kernel[:, :, 0, 1] = 0.
+        new_kernel[:, :, 0, 2] = 0.
+        new_kernel[:, :, 1, 0] = 0.
+        new_kernel[:, :, 1, 2] = 0.
+        new_kernel[:, :, 2, 0] = 0.
+        new_kernel[:, :, 2, 1] = 0.
+
+    return new_kernel
+
+class left_diagonal_conv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        super(left_diagonal_conv2d, self).__init__()
+        self.kernel_size = kernel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.stride = stride
+        self.padding = padding
+
+    def forward(self, x):
+
+        kernel = left_diagonal(self.out_channels, self.in_channels, self.kernel_size)
+        kernel = kernel.float().to(torch.device('cuda'))   # [channel_out, channel_in, kernel, kernel]
+        out = F.conv2d(x, kernel, stride=self.stride, padding=self.padding)
+
+        return out
+
+def right_diagonal(out_channels, in_channels, kernel_size):
+    '''
+    dui jiao xian
+    :return: a 3*3 kernel
+    0 0 w
+    0 w 0
+    w 0 0
+    '''
+    kernel_size1, kernel_size2 = kernel_size[0], kernel_size[1]
+    # if isinstance(kernel_size, tuple):
+    #     kernel_size1 = kernel_size[0]
+    #     kernel_size2 = kernel_size[1]
+    new_kernel = torch.randn(out_channels, in_channels, kernel_size1, kernel_size2, requires_grad=True).cuda()
+    with torch.no_grad():
+        new_kernel[:, :, 0, 0] = 0.
+        new_kernel[:, :, 0, 1] = 0.
+        new_kernel[:, :, 1, 0] = 0.
+        new_kernel[:, :, 1, 2] = 0.
+        new_kernel[:, :, 2, 1] = 0.
+        new_kernel[:, :, 2, 2] = 0.
+
+    return new_kernel
+
+class right_diagonal_conv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        super(right_diagonal_conv2d, self).__init__()
+        self.kernel_size = kernel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.stride = stride
+        self.padding = padding
+
+    def forward(self, x):
+
+        kernel = right_diagonal(self.out_channels, self.in_channels, self.kernel_size)
+        kernel = kernel.float().to(torch.device('cuda'))   # [channel_out, channel_in, kernel, kernel]
+        out = F.conv2d(x, kernel, stride=self.stride, padding=self.padding)
+
+        return out

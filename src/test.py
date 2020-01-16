@@ -17,7 +17,8 @@ from opts import opts
 from logger import Logger
 from utils.utils import AverageMeter
 from datasets.dataset_factory import dataset_factory
-from detectors.detector_factory import detector_factory
+#from detectors.detector_factory import detector_factory
+from ctdet_detector import CtdetDetector
 
 class PrefetchDataset(torch.utils.data.Dataset):
   def __init__(self, opt, dataset, pre_process_func):
@@ -47,11 +48,11 @@ def prefetch_test(opt):
   opt = opts().update_dataset_info_and_set_heads(opt, Dataset)
   print(opt)
   Logger(opt)
-  Detector = detector_factory[opt.task]
+  # Detector = CtdetDetector
   
   split = 'val' if not opt.trainval else 'test'
   dataset = Dataset(opt, split)
-  detector = Detector(opt)
+  detector = CtdetDetector(opt)
   
   data_loader = torch.utils.data.DataLoader(
     PrefetchDataset(opt, dataset, detector.pre_process), 
@@ -82,11 +83,11 @@ def test(opt):
   opt = opts().update_dataset_info_and_set_heads(opt, Dataset)
   print(opt)
   Logger(opt)
-  Detector = detector_factory[opt.task]
+  #Detector = detector_factory[opt.task]
   
   split = 'val' if not opt.trainval else 'test'
   dataset = Dataset(opt, split)
-  detector = Detector(opt)
+  detector = CtdetDetector(opt)
 
   results = {}
   num_iters = len(dataset)

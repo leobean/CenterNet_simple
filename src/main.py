@@ -13,8 +13,8 @@ from models.model import create_model, load_model, save_model
 from models.data_parallel import DataParallel
 from logger import Logger
 from datasets.dataset_factory import get_dataset
-from trains.train_factory import train_factory
-
+# from trains.train_factory import train_factory
+from ctdet_trainer import CtdetTrainer
 
 def main(opt):
   torch.manual_seed(opt.seed)
@@ -36,8 +36,9 @@ def main(opt):
     model, optimizer, start_epoch = load_model(
       model, opt.load_model, optimizer, opt.resume, opt.lr, opt.lr_step)
 
-  Trainer = train_factory[opt.task]
-  trainer = Trainer(opt, model, optimizer)
+  #Trainer = train_factory[opt.task]
+  #Trainer = CtdetTrainer
+  trainer = CtdetTrainer(opt, model, optimizer)
   trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
 
   print('Setting up data...')
